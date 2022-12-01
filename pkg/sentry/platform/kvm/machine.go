@@ -375,7 +375,6 @@ func (m *machine) hasSlot(physical uintptr) bool {
 // This throws on error.
 //
 //go:nosplit
-//go:norace
 func (m *machine) mapPhysical(physical, length uintptr, phyRegions []physicalRegion) {
 	for end := physical + length; physical < end; {
 		_, physicalStart, length, pr := calculateBluepillFault(physical, phyRegions)

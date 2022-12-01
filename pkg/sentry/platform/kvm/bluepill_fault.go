@@ -46,7 +46,6 @@ func yield() {
 // calculateBluepillFault calculates the fault address range.
 //
 //go:nosplit
-//go:norace
 func calculateBluepillFault(physical uintptr, phyRegions []physicalRegion) (virtualStart, physicalStart, length uintptr, pr *physicalRegion) {
 	alignedPhysical := physical &^ uintptr(hostarch.PageSize-1)
 	for i, pr := range phyRegions {
@@ -74,7 +73,6 @@ func calculateBluepillFault(physical uintptr, phyRegions []physicalRegion) (virt
 // The corresponding virtual address is returned. This may throw on error.
 //
 //go:nosplit
-//go:norace
 func handleBluepillFault(m *machine, physical uintptr, phyRegions []physicalRegion) (uintptr, bool) {
 	// Paging fault: we need to map the underlying physical pages for this
 	// fault. This all has to be done in this function because we're in a

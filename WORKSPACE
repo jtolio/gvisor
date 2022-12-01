@@ -88,8 +88,9 @@ go_repository(
 go_repository(
     name = "org_golang_x_sys",
     importpath = "golang.org/x/sys",
-    sum = "h1:ljd4t30dBnAvMZaQCevtY0xLLD0A+bRZXbgLMLU1F/A=",
-    version = "v0.2.0",
+    commit = "1fc47c917a071c514972bb258fbd11527fa41cb6",
+    remote = "https://github.com/avagin/sys",
+    vcs = "git",
 )
 
 go_repository(

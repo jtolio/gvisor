@@ -26,7 +26,6 @@ import (
 	"math"
 	"runtime"
 	"sync/atomic"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -46,7 +45,6 @@ func exitsyscall()
 // directly (instead of wrapping in an error) to avoid allocations.
 //
 //go:nosplit
-//go:norace
 func (m *machine) setMemoryRegion(slot int, physical, length, virtual uintptr, flags uint32) unix.Errno {
 	userRegion := userMemoryRegion{
 		slot:          uint32(slot),
@@ -57,7 +55,7 @@ func (m *machine) setMemoryRegion(slot int, physical, length, virtual uintptr, f
 	}
 
 	// Set the region.
-	_, _, errno := syscall.RawSyscall(
+	_, _, errno := unix.RawSyscall(
 		unix.SYS_IOCTL,
 		uintptr(m.fd),
 		_KVM_SET_USER_MEMORY_REGION,
@@ -203,7 +201,6 @@ func seccompMmapSync() {
 // to the guest.
 //
 //go:nosplit
-//go:norace
 func seccompMmapHandler(context unsafe.Pointer) {
 	mmapCallCounter.Increment()
 
