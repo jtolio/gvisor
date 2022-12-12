@@ -68,6 +68,28 @@ func (*icmpv4DestinationHostUnreachableSockError) Kind() stack.TransportErrorKin
 	return stack.DestinationHostUnreachableTransportError
 }
 
+var _ stack.TransportError = (*icmpv4DestinationNetUnreachableSockError)(nil)
+
+// icmpv4DestinationNetUnreachableSockError is an ICMPv4 Destination Net
+// Unreachable error.
+//
+// It indicates that a packet was not able to reach the destination network.
+//
+// +stateify savable
+type icmpv4DestinationNetUnreachableSockError struct {
+	icmpv4DestinationUnreachableSockError
+}
+
+// Code implements tcpip.SockErrorCause.
+func (*icmpv4DestinationNetUnreachableSockError) Code() uint8 {
+	return uint8(header.ICMPv4NetUnreachable)
+}
+
+// Kind implements stack.TransportError.
+func (*icmpv4DestinationNetUnreachableSockError) Kind() stack.TransportErrorKind {
+	return stack.DestinationNetworkUnreachableTransportError
+}
+
 var _ stack.TransportError = (*icmpv4DestinationPortUnreachableSockError)(nil)
 
 // icmpv4DestinationPortUnreachableSockError is an ICMPv4 Destination Port
@@ -363,7 +385,13 @@ func (e *endpoint) handleICMP(pkt stack.PacketBufferPtr) {
 		code := h.Code()
 		switch code {
 		case header.ICMPv4HostUnreachable:
+			fallthrough
+		case header.ICMPv4HostProhibited:
+			fallthrough
+		case header.ICMPv4AdminProhibited:
 			e.handleControl(&icmpv4DestinationHostUnreachableSockError{}, pkt)
+		case header.ICMPv4NetProhibited:
+			e.handleControl(&icmpv4DestinationNetUnreachableSockError{}, pkt)
 		case header.ICMPv4PortUnreachable:
 			e.handleControl(&icmpv4DestinationPortUnreachableSockError{}, pkt)
 		case header.ICMPv4FragmentationNeeded:

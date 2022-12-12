@@ -33,43 +33,54 @@ func init() {
 // an ICMP destination unreachable message is sent in response to the inital
 // SYN.
 func TestTCPSynSentUnreachable(t *testing.T) {
-	// Create the DUT and connection.
-	dut := testbench.NewDUT(t)
-	clientFD, clientPort := dut.CreateBoundSocket(t, unix.SOCK_STREAM|unix.SOCK_NONBLOCK, unix.IPPROTO_TCP, dut.Net.RemoteIPv4)
-	port := uint16(9001)
-	conn := dut.Net.NewTCPIPv4(t, testbench.TCP{SrcPort: &port, DstPort: &clientPort}, testbench.TCP{SrcPort: &clientPort, DstPort: &port})
-	defer conn.Close(t)
+	for _, tt := range []struct {
+		desc    string
+		code    header.ICMPv4Code
+		wantErr unix.Errno
+	}{{desc: "host_unreachable", code: header.ICMPv4HostUnreachable, wantErr: unix.EHOSTUNREACH},
+		{desc: "net_prohibited", code: header.ICMPv4NetProhibited, wantErr: unix.ENETUNREACH},
+		{desc: "host_prohibited", code: header.ICMPv4HostProhibited, wantErr: unix.EHOSTUNREACH},
+		{desc: "admin_prohibited", code: header.ICMPv4AdminProhibited, wantErr: unix.EHOSTUNREACH}} {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Create the DUT and connection.
+			dut := testbench.NewDUT(t)
+			clientFD, clientPort := dut.CreateBoundSocket(t, unix.SOCK_STREAM|unix.SOCK_NONBLOCK, unix.IPPROTO_TCP, dut.Net.RemoteIPv4)
+			port := uint16(9001)
+			conn := dut.Net.NewTCPIPv4(t, testbench.TCP{SrcPort: &port, DstPort: &clientPort}, testbench.TCP{SrcPort: &clientPort, DstPort: &port})
+			defer conn.Close(t)
 
-	// Bring the DUT to SYN-SENT state with a non-blocking connect.
-	sa := unix.SockaddrInet4{Port: int(port)}
-	copy(sa.Addr[:], dut.Net.LocalIPv4)
-	if _, err := dut.ConnectWithErrno(context.Background(), t, clientFD, &sa); err != unix.EINPROGRESS {
-		t.Errorf("got connect() = %v, want EINPROGRESS", err)
-	}
+			// Bring the DUT to SYN-SENT state with a non-blocking connect.
+			sa := unix.SockaddrInet4{Port: int(port)}
+			copy(sa.Addr[:], dut.Net.LocalIPv4)
+			if _, err := dut.ConnectWithErrno(context.Background(), t, clientFD, &sa); err != unix.EINPROGRESS {
+				t.Errorf("got connect() = %v, want EINPROGRESS", err)
+			}
 
-	// Get the SYN.
-	tcp, err := conn.Expect(t, testbench.TCP{Flags: testbench.TCPFlags(header.TCPFlagSyn)}, time.Second)
-	if err != nil {
-		t.Fatalf("expected SYN: %s", err)
-	}
+			// Get the SYN.
+			tcp, err := conn.Expect(t, testbench.TCP{Flags: testbench.TCPFlags(header.TCPFlagSyn)}, time.Second)
+			if err != nil {
+				t.Fatalf("expected SYN: %s", err)
+			}
 
-	// Send a host unreachable message.
-	icmpPayload := testbench.Layers{tcp.Prev(), tcp}
-	bytes, err := icmpPayload.ToBytes()
-	if err != nil {
-		t.Fatalf("got icmpPayload.ToBytes() = (_, %s), want = (_, nil)", err)
-	}
+			// Send a host unreachable message.
+			icmpPayload := testbench.Layers{tcp.Prev(), tcp}
+			bytes, err := icmpPayload.ToBytes()
+			if err != nil {
+				t.Fatalf("got icmpPayload.ToBytes() = (_, %s), want = (_, nil)", err)
+			}
 
-	layers := conn.CreateFrame(t, nil)
-	layers[len(layers)-1] = &testbench.ICMPv4{
-		Type:    testbench.ICMPv4Type(header.ICMPv4DstUnreachable),
-		Code:    testbench.ICMPv4Code(header.ICMPv4HostUnreachable),
-		Payload: bytes,
-	}
-	conn.SendFrameStateless(t, layers)
+			layers := conn.CreateFrame(t, nil)
+			layers[len(layers)-1] = &testbench.ICMPv4{
+				Type:    testbench.ICMPv4Type(header.ICMPv4DstUnreachable),
+				Code:    testbench.ICMPv4Code(tt.code),
+				Payload: bytes,
+			}
+			conn.SendFrameStateless(t, layers)
 
-	if err := getConnectError(t, &dut, clientFD); err != unix.EHOSTUNREACH {
-		t.Errorf("got connect() = %v, want EHOSTUNREACH", err)
+			if err := getConnectError(t, &dut, clientFD); err != tt.wantErr {
+				t.Errorf("got connect() = %s(%d), want %s(%d)", err, err, tt.wantErr, tt.wantErr)
+			}
+		})
 	}
 }
 
