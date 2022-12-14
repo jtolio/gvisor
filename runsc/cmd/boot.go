@@ -224,9 +224,12 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 
 	// Get the spec from the specFD.
 	specFile := os.NewFile(uintptr(b.specFD), "spec file")
-	defer specFile.Close()
 	spec, err := specutils.ReadSpecFromFile(b.bundleDir, specFile, conf)
+	// Don't defer specFile.Close() because then the FD will be exposed to
+	// the sandbox. We must explicitly close the file when we are done with
+	// it, after exec'ing ourself.
 	if err != nil {
+		specFile.Close()
 		util.Fatalf("reading spec: %v", err)
 	}
 	specutils.LogSpec(spec)
@@ -260,6 +263,9 @@ func (b *Boot) Execute(_ context.Context, f *flag.FlagSet, args ...any) subcomma
 		util.Fatalf("setCapsAndCallSelf(%v, %v): %v", args, caps, setCapsAndCallSelf(args, caps))
 		panic("unreachable")
 	}
+
+	// Close specFile to avoid exposing it to the sandbox.
+	specFile.Close()
 
 	// At this point we won't re-execute, so it's safe to limit via rlimits. Any
 	// limit >= 0 works. If the limit is lower than the current number of open
